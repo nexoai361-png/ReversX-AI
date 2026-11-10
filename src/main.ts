@@ -840,12 +840,15 @@ class ReversXUIApp {
           <!-- AI Providers Section -->
           <div class="${sectionHeaderClass}">Providers</div>
           <div class="${groupContainerClass}">
-            <div class="${rowClass}">
+            <div id="btn-provider-openrouter" class="${rowClass}">
               <div class="flex items-center gap-4">
-                <div class="${iconCircleClass}"><i data-lucide="zap" class="w-5 h-5 ${activeProvider === 'OpenRouter' && isConnected ? 'text-emerald-500' : 'text-emerald-500'}"></i></div>
-                <span class="text-[15px] font-medium ${this.isDarkMode ? 'text-slate-100' : 'text-zinc-800'}">OpenRouter</span>
+                <div class="${iconCircleClass}"><i data-lucide="zap" class="w-5 h-5 ${isConnected ? 'text-emerald-500' : 'text-amber-500'}"></i></div>
+                <div class="flex flex-col">
+                  <span class="text-[15px] font-medium ${this.isDarkMode ? 'text-slate-100' : 'text-zinc-800'}">OpenRouter</span>
+                  <span class="text-[11px] text-zinc-500">${isConnected ? 'API Key Configured' : 'Tap to enter API Key'}</span>
+                </div>
               </div>
-              <span class="text-[12px] ${activeProvider === 'OpenRouter' && isConnected ? 'text-emerald-400 font-semibold' : 'text-zinc-500 font-medium'}">${activeProvider === 'OpenRouter' && isConnected ? 'Active' : 'Active'}</span>
+              <span class="text-[12px] ${isConnected ? 'text-emerald-400 font-semibold' : 'text-amber-400 font-medium'}">${isConnected ? 'Connected' : 'Configure'}</span>
             </div>
             <div class="${rowClass}">
               <div class="flex items-center gap-4">
@@ -1441,10 +1444,10 @@ class ReversXUIApp {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: text,
-          byok: (this.byokConfig && (this.byokConfig.enabled || (this.byokConfig.apiKey && this.byokConfig.apiKey.trim().length > 0))) ? {
+          byok: (this.byokConfig && this.byokConfig.apiKey && this.byokConfig.apiKey.trim().length > 0 && this.byokConfig.apiKey.trim() !== 'undefined' && this.byokConfig.apiKey.trim() !== 'null') ? {
             service: this.byokConfig.service || "OpenRouter",
             baseUrl: this.byokConfig.baseUrl || "https://openrouter.ai/api/v1",
-            apiKey: this.byokConfig.apiKey,
+            apiKey: this.byokConfig.apiKey.trim(),
             defaultModel: this.byokConfig.defaultModel || "google/gemini-2.5-flash",
           } : undefined,
           enableAgent: true,

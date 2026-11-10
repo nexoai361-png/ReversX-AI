@@ -189,6 +189,23 @@ interface BYOKPayload {
   defaultModel?: string;
 }
 
+function cleanApiKey(key?: string | null): string {
+  if (!key) return '';
+  let cleaned = String(key).trim();
+  cleaned = cleaned.replace(/^["']|["']$/g, '').trim();
+  cleaned = cleaned.replace(/^Bearer\s+/i, '').trim();
+  if (
+    cleaned === '' ||
+    cleaned.toLowerCase() === 'undefined' ||
+    cleaned.toLowerCase() === 'null' ||
+    cleaned === 'sk-or-v1-your-key-here' ||
+    cleaned === 'YOUR_API_KEY'
+  ) {
+    return '';
+  }
+  return cleaned;
+}
+
 app.post('/api/gemini/generate', async (req, res) => {
   try {
     const { prompt, systemInstruction, byok } = req.body as {
@@ -223,10 +240,10 @@ app.post('/api/gemini/generate', async (req, res) => {
 
     let answerText = '';
 
-    // Determine OpenRouter / BYOK credentials (from client BYOK payload or server environment)
-    const activeApiKey = (byok && byok.apiKey && byok.apiKey.trim().length > 0)
-      ? byok.apiKey.trim()
-      : (process.env.OPENROUTER_API_KEY ? process.env.OPENROUTER_API_KEY.trim() : '');
+    // Determine OpenRouter / BYOK credentials with sanitization
+    const rawClientKey = byok && byok.apiKey ? byok.apiKey : '';
+    const rawEnvKey = process.env.OPENROUTER_API_KEY || '';
+    const activeApiKey = cleanApiKey(rawClientKey) || cleanApiKey(rawEnvKey);
 
     const activeBaseUrl = (byok && byok.baseUrl && byok.baseUrl.trim().length > 0)
       ? byok.baseUrl.trim().replace(/\/+$/, '')

@@ -627,14 +627,15 @@ export function attachAllEventListeners(ctx: AppHandlerContext) {
     });
   }
 
-  const closeAddProviderBtn = document.getElementById('btn-close-add-provider');
-  const cancelAddProviderBtn = document.getElementById('btn-cancel-add-provider');
-  if (cancelAddProviderBtn) {
-    cancelAddProviderBtn.addEventListener('click', () => {
-      ctx.isAddProviderOpen = false;
+  const openRouterRowBtn = document.getElementById('btn-provider-openrouter');
+  if (openRouterRowBtn) {
+    openRouterRowBtn.addEventListener('click', () => {
+      ctx.isAddProviderOpen = true;
       ctx.render();
     });
   }
+
+  const closeAddProviderBtn = document.getElementById('btn-close-add-provider');
 
   // Toggle API key visibility
   const toggleKeyBtn = document.getElementById('btn-toggle-key-visibility');
@@ -675,35 +676,55 @@ export function attachAllEventListeners(ctx: AppHandlerContext) {
 
   // Handle Save Profile
   const byokForm = document.getElementById('form-save-byok-provider');
+  const saveByokBtn = document.getElementById('btn-save-byok-profile');
+  const cancelAddProviderBtn = document.getElementById('btn-cancel-add-provider');
+
+  const onSaveProfile = (e?: Event) => {
+    if (e) e.preventDefault();
+    const serviceEl = document.getElementById('byok-service-select') as HTMLSelectElement;
+    const baseUrlEl = document.getElementById('byok-base-url') as HTMLInputElement;
+    const apiKeyEl = document.getElementById('byok-api-key') as HTMLInputElement;
+    const modelEl = document.getElementById('byok-default-model') as HTMLInputElement;
+
+    const service = serviceEl?.value || 'OpenRouter';
+    const baseUrl = baseUrlEl?.value.trim() || 'https://openrouter.ai/api/v1';
+    let apiKey = apiKeyEl?.value.trim() || '';
+    apiKey = apiKey.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
+    const defaultModel = modelEl?.value.trim() || 'google/gemini-2.5-flash';
+
+    if (!apiKey) {
+      ctx.showCopiedToast('Please enter an API Key');
+      return;
+    }
+
+    ctx.byokConfig = {
+      service,
+      baseUrl,
+      apiKey,
+      defaultModel,
+      enabled: true,
+    };
+
+    try {
+      localStorage.setItem('reversx_byok_config', JSON.stringify(ctx.byokConfig));
+    } catch (err) {
+      console.warn('Could not save to localStorage', err);
+    }
+
+    ctx.isAddProviderOpen = false;
+    ctx.showCopiedToast(`${service} profile saved (${defaultModel})`);
+    ctx.render();
+  };
+
   if (byokForm) {
-    byokForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const serviceEl = document.getElementById('byok-service-select') as HTMLSelectElement;
-      const baseUrlEl = document.getElementById('byok-base-url') as HTMLInputElement;
-      const apiKeyEl = document.getElementById('byok-api-key') as HTMLInputElement;
-      const modelEl = document.getElementById('byok-default-model') as HTMLInputElement;
-
-      const service = serviceEl?.value || 'OpenRouter';
-      const baseUrl = baseUrlEl?.value.trim() || 'https://openrouter.ai/api/v1';
-      const apiKey = apiKeyEl?.value.trim() || '';
-      const defaultModel = modelEl?.value.trim() || 'google/gemini-2.5-flash';
-
-      ctx.byokConfig = {
-        service,
-        baseUrl,
-        apiKey,
-        defaultModel,
-        enabled: apiKey.length > 0,
-      };
-
-      try {
-        localStorage.setItem('reversx_byok_config', JSON.stringify(ctx.byokConfig));
-      } catch (err) {
-        console.warn('Could not save to localStorage', err);
-      }
-
+    byokForm.addEventListener('submit', onSaveProfile);
+  }
+  if (saveByokBtn) {
+    saveByokBtn.addEventListener('click', onSaveProfile);
+  }
+  if (cancelAddProviderBtn) {
+    cancelAddProviderBtn.addEventListener('click', () => {
       ctx.isAddProviderOpen = false;
-      ctx.showCopiedToast(`${service} profile saved with model: ${defaultModel}`);
       ctx.render();
     });
   }
