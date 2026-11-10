@@ -1,0 +1,6 @@
+{
+  "name": "ReversX",
+  "description": "A minimalist AI platform with advanced reasoning, voice, and math capabilities.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ReversX Style Mobile Menu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+    :root {
+        --bg-body: #0a0a0a;
+        --bg-container: #1c1c1e;
+        --bg-icon-box: #2c2c2e;
+        
+        --text-main: #ffffff;
+        --text-sub: #8e8e93;
+        
+        --border-radius-container: 24px;
+        --border-radius-box: 20px;
+    }
+
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        -webkit-tap-highlight-color: transparent;
+        /* No animations */
+        transition: none !important;
+        animation: none !important;
+    }
+
+    body {
+        background-color: var(--bg-body);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        font-family: 'Source Sans 3', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        padding: 16px;
+    }
+
+    /* Main Wrapper */
+    .menu-container {
+        background-color: var(--bg-container);
+        width: 100%;
+        max-width: 420px;
+        border-radius: var(--border-radius-container);
+        padding: 24px 20px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    /* --- Top Square Icons Grid --- */
+    .top-icons-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr); 
+        gap: 12px;
+        margin-bottom: 32px;
+    }
+
+    .icon-box {
+        background-color: var(--bg-icon-box);
+        border-radius: var(--border-radius-box);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 16px 4px;
+        cursor: pointer;
+        aspect-ratio: 1 / 1; 
+    }
+
+    /* Styles applied to Lucide SVGs */
+    .icon-box svg {
+        width: 24px;
+        height: 24px;
+        color: var(--text-main);
+        stroke-width: 1.8;
+        margin-bottom: 8px;
+    }
+
+    .icon-box span {
+        color: var(--text-main);
+        font-size: 13px;
+        font-weight: 500;
+        text-align: center;
+        line-height: 1.2;
+    }
+
+    /* --- Middle List Section --- */
+    .list-section {
+        display: flex;
+        flex-direction: column;
+        gap: 28px;
+    }
+
+    .list-item {
+        display: flex;
+        align-items: flex-start; 
+        justify-content: space-between;
+        cursor: pointer;
+    }
+
+    /* Left side: Icon + Text */
+    .item-content {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        padding-right: 12px; 
+        flex: 1;
+    }
+
+    .item-icon {
+        width: 26px;
+        height: 26px;
+        flex-shrink: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-top: 2px; 
+    }
+
+    .item-icon svg {
+        width: 100%;
+        height: 100%;
+        color: var(--text-main);
+        stroke-width: 1.8;
+    }
+
+    .text-wrapper {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .item-title {
+        color: var(--text-main);
+        font-size: 18px;
+        font-weight: 500;
+        line-height: 1.2;
+    }
+
+    .item-subtitle {
+        color: var(--text-sub);
+        font-size: 14.5px;
+        line-height: 1.35;
+    }
+
+    /* Right side: Chevron Arrow */
+    .chevron-right {
+        width: 20px;
+        height: 20px;
+        flex-shrink: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-top: 4px;
+    }
+
+    .chevron-right svg {
+        width: 100%;
+        height: 100%;
+        color: #666; 
+        stroke-width: 2;
+    }
+
+</style>
+</head>
+<body>
+
+<div class="menu-container">
+    
+    <!-- Top Grid: Camera, Photos, Local File -->
+    <div class="top-icons-grid">
+        
+        <div class="icon-box">
+            <i data-lucide="camera"></i>
+            <span>Camera</span>
+        </div>
+
+        <div class="icon-box">
+            <i data-lucide="image"></i>
+            <span>Photos</span>
+        </div>
+
+        <div class="icon-box">
+            <i data-lucide="folder-up"></i>
+            <span>Local file</span>
+        </div>
+
+    </div>
+
+    <!-- Middle List: Plugins, Skills, Goal -->
+    <div class="list-section">
+        
+        <!-- Plugins -->
+        <div class="list-item">
+            <div class="item-content">
+                <div class="item-icon">
+                    <i data-lucide="plug-2"></i>
+                </div>
+                <div class="text-wrapper">
+                    <span class="item-title">Plugins</span>
+                    <span class="item-subtitle">Connect apps and databases to automate actions for you</span>
+                </div>
+            </div>
+            <div class="chevron-right">
+                <i data-lucide="chevron-right"></i>
+            </div>
+        </div>
+
+        <!-- Skills -->
+        <div class="list-item">
+            <div class="item-content">
+                <div class="item-icon">
+                    <i data-lucide="book-open"></i>
+                </div>
+                <div class="text-wrapper">
+                    <span class="item-title">Skills</span>
+                    <span class="item-subtitle">Reuse specialized skills to handle specific tasks reliably</span>
+                </div>
+            </div>
+            <div class="chevron-right">
+                <i data-lucide="chevron-right"></i>
+            </div>
+        </div>
+
+        <!-- Goal -->
+        <div class="list-item">
+            <div class="item-content">
+                <div class="item-icon">
+                    <i data-lucide="target"></i>
+                </div>
+                <div class="text-wrapper">
+                    <span class="item-title">Goal</span>
+                    <!-- Changed Kimi to ReversX -->
+                    <span class="item-subtitle">ReversX keeps working until your goal is done</span>
+                </div>
+            </div>
+            <div class="chevron-right">
+                <i data-lucide="chevron-right"></i>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- Load Lucide Icons Script -->
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+  lucide.createIcons();
+</script>
+
+</body>
+</html>
