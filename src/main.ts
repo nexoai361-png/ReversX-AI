@@ -1441,11 +1441,11 @@ class ReversXUIApp {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: text,
-          byok: this.byokConfig && this.byokConfig.enabled ? {
-            service: this.byokConfig.service,
-            baseUrl: this.byokConfig.baseUrl,
+          byok: (this.byokConfig && (this.byokConfig.enabled || (this.byokConfig.apiKey && this.byokConfig.apiKey.trim().length > 0))) ? {
+            service: this.byokConfig.service || "OpenRouter",
+            baseUrl: this.byokConfig.baseUrl || "https://openrouter.ai/api/v1",
             apiKey: this.byokConfig.apiKey,
-            defaultModel: this.byokConfig.defaultModel,
+            defaultModel: this.byokConfig.defaultModel || "google/gemini-2.5-flash",
           } : undefined,
           enableAgent: true,
           systemInstruction: "You are ReversX, powered by DeepAgents autonomous architecture. Provide concise, clear, and elegant responses using clean Markdown, code snippets, and LaTeX for mathematical formulas (use $...$ for inline and $$...$$ for blocks). When possible, include mathematical examples to demonstrate your capabilities."
