@@ -1448,22 +1448,37 @@ class ReversXUIApp {
             defaultModel: this.byokConfig.defaultModel || "google/gemini-2.5-flash",
           } : undefined,
           enableAgent: true,
-          systemInstruction: "You are ReversX, powered by DeepAgents autonomous architecture. Provide concise, clear, and elegant responses using clean Markdown, code snippets, and LaTeX for mathematical formulas (use $...$ for inline and $$...$$ for blocks). When possible, include mathematical examples to demonstrate your capabilities."
+          systemInstruction: "You are ReversX, powered by DeepAgents autonomous architecture. Provide concise, clear, and elegant responses using clean Markdown, code snippets, and LaTeX for mathematical formulas (use $...$ for inline and $$...$$ for blocks)."
         })
       });
 
       const data = await res.json();
       const answer = data.text || "I received your request!";
+      const assistantMsgId = (Date.now() + 1).toString();
       
+      // Push message shell for live text streaming
       this.currentMessages.push({
-        id: (Date.now() + 1).toString(),
+        id: assistantMsgId,
         role: "assistant",
-        content: answer,
+        content: "",
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         agentSteps: data.steps || [],
         providerUsed: data.provider,
         modelUsed: data.model,
       });
+
+      // Stream tokens progressively into UI
+      const targetMsg = this.currentMessages.find(m => m.id === assistantMsgId);
+      if (targetMsg) {
+        const chunks = answer.match(/.\s*|\S+\s*/g) || [answer];
+        for (let i = 0; i < chunks.length; i++) {
+          targetMsg.content += chunks[i];
+          if (i % 3 === 0 || i === chunks.length - 1) {
+            this.render();
+            await new Promise(r => setTimeout(r, 12));
+          }
+        }
+      }
     } catch (err: any) {
       console.error(err);
       this.currentMessages.push({

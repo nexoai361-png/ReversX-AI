@@ -323,6 +323,18 @@ app.post('/api/gemini/generate', async (req, res) => {
       });
     }
 
+    const isStreaming = req.body.stream === true || req.query.stream === 'true';
+
+    if (isStreaming) {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+
+      res.write(`data: ${JSON.stringify({ text: answerText, steps, provider: providerName, model: modelName })}\n\n`);
+      res.write('data: [DONE]\n\n');
+      return res.end();
+    }
+
     res.json({
       text: answerText,
       steps,
