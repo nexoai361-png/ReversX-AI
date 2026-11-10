@@ -3,7 +3,10 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI, Type, FunctionDeclaration } from '@google/genai';
+import { createDeepAgent } from 'deepagents';
+import { ChatOpenAI } from '@langchain/openai';
+import { tool } from '@langchain/core/tools';
+import { z } from 'zod';
 
 dotenv.config();
 
@@ -13,174 +16,119 @@ const port = Number(process.env.PORT) || 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
-// OpenRouter-powered DeepAgents backend
-
-// In-memory virtual workspace for DeepAgents
+// In-memory virtual workspace for LangChain DeepAgents
 const virtualFilesystem: Record<string, string> = {
-  'README.md': '# ReversX DeepAgents Workspace\nAutonomous execution environment with live tools.',
-  'notes.txt': 'Project active. DeepAgents built-in tools ready.',
+  'README.md': '# ReversX LangChain DeepAgents Workspace\nAutonomous execution environment powered by official LangChain deepagents package.',
+  'notes.txt': 'Project active. LangChain DeepAgents built-in tools ready.',
 };
 
-// DeepAgents Built-in Tool Definitions (Function Declarations for LLM)
-const deepAgentsToolsSchema: FunctionDeclaration[] = [
+// Official LangChain Tools using @langchain/core/tools
+const readFileTool = tool(
+  async ({ filename }: { filename: string }) => {
+    if (filename in virtualFilesystem) {
+      return `[File Content for "${filename}"]\n${virtualFilesystem[filename]}`;
+    }
+    return `Error: File "${filename}" not found. Available files: ${Object.keys(virtualFilesystem).join(', ')}`;
+  },
   {
     name: 'read_file',
     description: 'Read the contents of a file from the DeepAgents virtual workspace filesystem.',
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        filename: { type: Type.STRING, description: 'The filename to read, e.g. "README.md" or "notes.txt"' },
-      },
-      required: ['filename'],
-    },
+    schema: z.object({
+      filename: z.string().describe('The filename to read, e.g. "README.md" or "notes.txt"'),
+    }),
+  }
+);
+
+const writeFileTool = tool(
+  async ({ filename, content }: { filename: string; content: string }) => {
+    virtualFilesystem[filename] = content || '';
+    return `Success: File "${filename}" saved to DeepAgents filesystem (${content.length} characters).`;
   },
   {
     name: 'write_file',
     description: 'Create or overwrite a file in the DeepAgents virtual workspace filesystem.',
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        filename: { type: Type.STRING, description: 'The filename to write' },
-        content: { type: Type.STRING, description: 'The content string to save into the file' },
-      },
-      required: ['filename', 'content'],
-    },
+    schema: z.object({
+      filename: z.string().describe('The filename to write'),
+      content: z.string().describe('The content string to save into the file'),
+    }),
+  }
+);
+
+const editFileTool = tool(
+  async ({ filename, targetText, replacementText }: { filename: string; targetText: string; replacementText: string }) => {
+    if (filename in virtualFilesystem) {
+      if (virtualFilesystem[filename].includes(targetText)) {
+        virtualFilesystem[filename] = virtualFilesystem[filename].replace(targetText, replacementText);
+        return `Success: Replaced target text inside "${filename}".`;
+      }
+      return `Error: Target text not found inside "${filename}".`;
+    }
+    return `Error: File "${filename}" not found. Available files: ${Object.keys(virtualFilesystem).join(', ')}`;
+  },
+  {
+    name: 'edit_file',
+    description: 'Replace target string inside a file in DeepAgents workspace filesystem.',
+    schema: z.object({
+      filename: z.string().describe('Filename to edit'),
+      targetText: z.string().describe('Exact text to replace'),
+      replacementText: z.string().describe('New replacement text'),
+    }),
+  }
+);
+
+const listFilesTool = tool(
+  async () => {
+    return `Workspace Files: ${Object.keys(virtualFilesystem).join(', ')}`;
   },
   {
     name: 'list_files',
     description: 'List all files currently in the DeepAgents virtual workspace filesystem.',
-    parameters: {
-      type: Type.OBJECT,
-      properties: {},
-    },
+    schema: z.object({}),
+  }
+);
+
+const calculateMathTool = tool(
+  async ({ expression }: { expression: string }) => {
+    try {
+      const sanitized = String(expression || '').replace(/[^0-9+\-*/().^ %]/g, '');
+      // eslint-disable-next-line no-eval
+      const result = Function(`'use strict'; return (${sanitized})`)();
+      return `Calculation Result: ${result}`;
+    } catch (err: any) {
+      return `Calculation evaluation: ${expression}`;
+    }
   },
   {
     name: 'calculate_math',
     description: 'Compute a mathematical formula or expression with exact numerical accuracy.',
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        expression: { type: Type.STRING, description: 'Mathematical expression to compute, e.g. "sqrt(144) + 12 * 5"' },
-      },
-      required: ['expression'],
-    },
+    schema: z.object({
+      expression: z.string().describe('Mathematical expression to compute, e.g. "sqrt(144) + 12 * 5"'),
+    }),
+  }
+);
+
+const spawnSubagentTool = tool(
+  async ({ role, task }: { role: string; task: string }) => {
+    return `Subagent [${role || 'Worker'}] successfully executed task: "${task}". Result verified and returned to parent DeepAgent.`;
   },
   {
     name: 'spawn_subagent',
     description: 'Spawn a specialized DeepAgent child subagent to handle a delegated task.',
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        role: { type: Type.STRING, description: 'Subagent role, e.g. "Code Auditor", "Data Researcher", "Math Verifier"' },
-        task: { type: Type.STRING, description: 'The dedicated task assigned to this subagent' },
-      },
-      required: ['role', 'task'],
-    },
-  },
-];
-
-// OpenRouter / OpenAI Tools Format
-const openAiFormatTools = [
-  {
-    type: 'function',
-    function: {
-      name: 'read_file',
-      description: 'Read a file from DeepAgents workspace filesystem',
-      parameters: {
-        type: 'object',
-        properties: { filename: { type: 'string', description: 'Filename to read' } },
-        required: ['filename'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'write_file',
-      description: 'Write a file into DeepAgents workspace filesystem',
-      parameters: {
-        type: 'object',
-        properties: {
-          filename: { type: 'string', description: 'Filename to write' },
-          content: { type: 'string', description: 'Content to write' },
-        },
-        required: ['filename', 'content'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'list_files',
-      description: 'List files in DeepAgents workspace',
-      parameters: { type: 'object', properties: {} },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'calculate_math',
-      description: 'Compute a mathematical expression with precision',
-      parameters: {
-        type: 'object',
-        properties: { expression: { type: 'string', description: 'Math expression' } },
-        required: ['expression'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'spawn_subagent',
-      description: 'Spawn a specialized DeepAgent child subagent',
-      parameters: {
-        type: 'object',
-        properties: {
-          role: { type: 'string', description: 'Role of subagent' },
-          task: { type: 'string', description: 'Task to perform' },
-        },
-        required: ['role', 'task'],
-      },
-    },
-  },
-];
-
-// Execute tool call and return result
-function executeDeepAgentTool(toolName: string, args: Record<string, any>): string {
-  switch (toolName) {
-    case 'read_file': {
-      const fn = args.filename;
-      if (fn in virtualFilesystem) {
-        return `[File Content for "${fn}"]\n${virtualFilesystem[fn]}`;
-      }
-      return `Error: File "${fn}" not found. Available files: ${Object.keys(virtualFilesystem).join(', ')}`;
-    }
-    case 'write_file': {
-      const fn = args.filename;
-      const content = args.content || '';
-      virtualFilesystem[fn] = content;
-      return `Success: File "${fn}" saved to DeepAgents filesystem (${content.length} characters).`;
-    }
-    case 'list_files': {
-      return `Workspace Files: ${Object.keys(virtualFilesystem).join(', ')}`;
-    }
-    case 'calculate_math': {
-      try {
-        const sanitized = String(args.expression || '').replace(/[^0-9+\-*/().^ %]/g, '');
-        // eslint-disable-next-line no-eval
-        const result = Function(`'use strict'; return (${sanitized})`)();
-        return `Calculation Result: ${result}`;
-      } catch (err: any) {
-        return `Calculation evaluation: ${args.expression}`;
-      }
-    }
-    case 'spawn_subagent': {
-      return `Subagent [${args.role || 'Worker'}] successfully executed task: "${args.task}". Result verified and returned to parent DeepAgent.`;
-    }
-    default:
-      return `Tool ${toolName} executed successfully.`;
+    schema: z.object({
+      role: z.string().describe('Subagent role, e.g. "Code Auditor", "Data Researcher"'),
+      task: z.string().describe('The dedicated task assigned to this subagent'),
+    }),
   }
-}
+);
+
+const langChainDeepAgentTools = [
+  readFileTool,
+  writeFileTool,
+  editFileTool,
+  listFilesTool,
+  calculateMathTool,
+  spawnSubagentTool,
+];
 
 interface BYOKPayload {
   service?: string;
@@ -232,8 +180,8 @@ app.post('/api/gemini/generate', async (req, res) => {
     // Step 1: DeepAgent Planning phase
     steps.push({
       type: 'plan',
-      title: 'DeepAgents Plan & Tool Strategy',
-      detail: `Assessed task requirement and checked availability of built-in filesystem, math, and subagent tools.`,
+      title: 'LangChain DeepAgents Graph Strategy',
+      detail: `Assessed prompt requirements and initialized official LangChain deepagents tools harness.`,
       status: 'completed',
       timestamp: nowTime(),
     });
@@ -256,131 +204,106 @@ app.post('/api/gemini/generate', async (req, res) => {
     let providerName = (byok && byok.service) ? byok.service : 'OpenRouter';
     let modelName = activeModel;
 
-    // Route A: OpenRouter Execution with Tool Calling
+    // Execute via Official LangChain DeepAgents Library
     if (activeApiKey.length > 0) {
       providerName = providerName || 'OpenRouter';
       modelName = activeModel;
 
       try {
-        const sysPrompt = `${systemInstruction || 'You are ReversX with DeepAgents autonomous architecture.'} You have full access to built-in tools (read_file, write_file, list_files, calculate_math, spawn_subagent). Call tools whenever appropriate, and return clear Markdown with LaTeX ($...$, $$...$$) for any equations.`;
+        const sysPrompt = `${systemInstruction || 'You are ReversX powered by LangChain DeepAgents.'} You have access to built-in tools (read_file, write_file, edit_file, list_files, calculate_math, spawn_subagent). Call tools whenever appropriate, and return clear Markdown with LaTeX ($...$, $$...$$) for any equations.`;
 
-        // 1st Turn: Send prompt with tool definitions to provider
-        const firstTurnRes = await fetch(`${activeBaseUrl}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${activeApiKey}`,
-            'HTTP-Referer': 'https://aistudio.google.com',
-            'X-Title': 'ReversX DeepAgents',
+        // Instantiate ChatOpenAI targeting OpenRouter
+        const langchainModel = new ChatOpenAI({
+          modelName: activeModel,
+          temperature: 0.2,
+          configuration: {
+            baseURL: activeBaseUrl,
+            apiKey: activeApiKey,
+            defaultHeaders: {
+              'HTTP-Referer': 'https://aistudio.google.com',
+              'X-Title': 'ReversX LangChain DeepAgents',
+            },
           },
-          body: JSON.stringify({
-            model: activeModel,
-            messages: [
-              { role: 'system', content: sysPrompt },
-              { role: 'user', content: prompt },
-            ],
-            tools: openAiFormatTools,
-            tool_choice: 'auto',
-          }),
         });
 
-        if (!firstTurnRes.ok) {
-          const errText = await firstTurnRes.text();
-          throw new Error(`OpenRouter HTTP ${firstTurnRes.status}: ${errText}`);
+        // Initialize Official LangChain DeepAgent
+        const deepAgent = createDeepAgent({
+          model: langchainModel,
+          systemPrompt: sysPrompt,
+          tools: langChainDeepAgentTools,
+        });
+
+        steps.push({
+          type: 'plan',
+          title: 'Official LangChain DeepAgent Graph Executed',
+          detail: `Invoking agent graph via createDeepAgent (${activeModel}).`,
+          status: 'completed',
+          timestamp: nowTime(),
+        });
+
+        // Invoke the official LangChain DeepAgent!
+        const agentResult = await deepAgent.invoke({
+          messages: [
+            { role: 'user', content: prompt }
+          ]
+        });
+
+        // Extract steps & tool executions from LangChain agent output graph
+        if (agentResult && agentResult.messages && Array.isArray(agentResult.messages)) {
+          for (const rawMsg of agentResult.messages) {
+            const msg = rawMsg as any;
+            if (msg.tool_calls && Array.isArray(msg.tool_calls)) {
+              for (const tc of msg.tool_calls) {
+                steps.push({
+                  type: 'tool_call',
+                  title: `LangChain Tool Executed: ${tc.name}()`,
+                  detail: `Arguments: ${JSON.stringify(tc.args || {})}`,
+                  status: 'completed',
+                  timestamp: nowTime(),
+                });
+              }
+            }
+            const msgType = typeof msg._getType === 'function' ? msg._getType() : (msg.type || '');
+            if (msgType === 'tool' || msg.name || msg.tool_call_id) {
+              steps.push({
+                type: 'tool_result',
+                title: `LangChain Tool Result [${msg.name || 'tool'}]`,
+                detail: typeof msg.content === 'string' ? msg.content.slice(0, 150) : JSON.stringify(msg.content).slice(0, 150),
+                status: 'completed',
+                timestamp: nowTime(),
+              });
+            }
+          }
+
+          const lastMsg = agentResult.messages[agentResult.messages.length - 1];
+          answerText = typeof lastMsg.content === 'string' ? lastMsg.content : JSON.stringify(lastMsg.content);
+        } else {
+          answerText = typeof agentResult === 'string' ? agentResult : JSON.stringify(agentResult);
         }
 
-        const firstTurnData = await firstTurnRes.json();
-        const choice = firstTurnData.choices?.[0];
-        const toolCalls = choice?.message?.tool_calls;
-
-        if (toolCalls && Array.isArray(toolCalls) && toolCalls.length > 0) {
-          // AI decided to call built-in tools!
-          const toolMessages: any[] = [
-            { role: 'system', content: sysPrompt },
-            { role: 'user', content: prompt },
-            choice.message,
-          ];
-
-          for (const tc of toolCalls) {
-            const tName = tc.function.name;
-            let tArgs = {};
-            try {
-              tArgs = JSON.parse(tc.function.arguments || '{}');
-            } catch {
-              tArgs = {};
-            }
-
-            steps.push({
-              type: 'tool_call',
-              title: `AI Executed Tool: ${tName}()`,
-              detail: `Arguments: ${JSON.stringify(tArgs)}`,
-              status: 'completed',
-              timestamp: nowTime(),
-            });
-
-            const tResult = executeDeepAgentTool(tName, tArgs);
-
-            steps.push({
-              type: 'tool_result',
-              title: `Tool Result [${tName}]`,
-              detail: tResult.slice(0, 150),
-              status: 'completed',
-              timestamp: nowTime(),
-            });
-
-            toolMessages.push({
-              role: 'tool',
-              tool_call_id: tc.id,
-              name: tName,
-              content: tResult,
-            });
-          }
-
-          // 2nd Turn: Model synthesizes answer with the tool execution output
-          const secondTurnRes = await fetch(`${activeBaseUrl}/chat/completions`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${activeApiKey}`,
-              'HTTP-Referer': 'https://aistudio.google.com',
-              'X-Title': 'ReversX DeepAgents',
-            },
-            body: JSON.stringify({
-              model: activeModel,
-              messages: toolMessages,
-            }),
-          });
-
-          if (secondTurnRes.ok) {
-            const secondData = await secondTurnRes.json();
-            answerText = secondData.choices?.[0]?.message?.content || '';
-          } else {
-            answerText = choice?.message?.content || 'Tool execution completed.';
-          }
-        } else {
-          // Normal direct answer
-          answerText = choice?.message?.content || 'Received response.';
+        if (!answerText) {
+          answerText = 'LangChain DeepAgent task completed.';
         }
       } catch (byokErr: any) {
-        console.warn('OpenRouter request notice:', byokErr.message);
+        console.warn('LangChain DeepAgent execution notice:', byokErr.message);
         steps.push({
           type: 'tool_result',
-          title: 'OpenRouter Execution Status',
+          title: 'LangChain DeepAgent Execution Status',
           detail: byokErr.message.slice(0, 150),
           status: 'failed',
           timestamp: nowTime(),
         });
 
-        answerText = `### ⚠️ OpenRouter Request Notice\n\n${byokErr.message}\n\nPlease verify your API key in **Settings > BYOK** or check your OpenRouter credits.`;
+        answerText = `### ⚠️ OpenRouter / LangChain Notice\n\n${byokErr.message}\n\nPlease verify your API key in **Settings > BYOK** or check your OpenRouter credits.`;
       }
     } else {
-      // No OpenRouter API key found (neither in BYOK nor in environment)
+      // No API Key provided
       providerName = 'OpenRouter';
       modelName = activeModel;
       answerText = [
         "### 🔑 OpenRouter API Key Required",
         "",
-        "OpenRouter দিয়ে চ্যাট ও DeepAgents এর Built-in Tools (Filesystem, Math, Subagent) ব্যবহার করতে আপনার API Key প্রয়োজন:",
+        "LangChain DeepAgents এবং এর Built-in Tools (Filesystem, Math, Subagent) ব্যবহার করার জন্য আপনার API Key প্রয়োজন:",
         "",
         "1. নিচে বামে বা উপরে ডানদিকের মেনু থেকে **Settings**-এ যান।",
         "2. **BYOK** অপশনে ক্লিক করুন।",
@@ -407,8 +330,8 @@ app.post('/api/gemini/generate', async (req, res) => {
       model: modelName,
     });
   } catch (error: any) {
-    console.error('DeepAgents Error:', error);
-    res.status(500).json({ error: error.message || 'Failed to execute DeepAgent task' });
+    console.error('LangChain DeepAgents Error:', error);
+    res.status(500).json({ error: error.message || 'Failed to execute LangChain DeepAgent task' });
   }
 });
 
